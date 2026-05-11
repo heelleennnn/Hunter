@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, dash_table
 import plotly.express as px
 
 DATA_PATH = "dashboard_data.csv"
@@ -34,6 +34,16 @@ def postcode_to_state(postcode):
     return "Unknown"
 
 
+def clean_text_series(series):
+    """Clean a text column while keeping blank values as missing."""
+    return (
+        series
+        .astype("string")
+        .str.strip()
+        .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
+    )
+
+
 def load_data():
     df = pd.read_csv(DATA_PATH)
 
@@ -47,10 +57,41 @@ def load_data():
     )
     df["Derived State"] = df["Postcode_clean"].apply(postcode_to_state)
 
-    # Clean dimensions for charts.
+    # Clean dimensions used in charts and tables.
+    text_columns = [
+        "Location",
+        "Form",
+        "Registration Type",
+        "Badge",
+        "Colour",
+        "Second-preference Colour",
+        "Interior",
+        "Optional Package",
+        "Trade-in Yes/No",
+        "Year",
+        "Vehicle",
+        "Model.1",
+        "Odometer",
+    ]
+    for col in text_columns:
+        if col in df.columns:
+            df[col] = clean_text_series(df[col])
+
+    # Main chart dimensions still use Unknown so the original dashboard does not drop leads.
     for col in ["Location", "Form"]:
-        df[col] = df[col].fillna("Unknown").astype(str).str.strip()
-        df.loc[df[col] == "", col] = "Unknown"
+        df[col] = df[col].fillna("Unknown")
+
+    # Standardise trade-in values for the Yes/No bar chart.
+    if "Trade-in Yes/No" in df.columns:
+        trade = df["Trade-in Yes/No"].astype("string").str.strip().str.lower()
+        df["Trade-in Clean"] = trade.map({
+            "yes": "Yes",
+            "y": "Yes",
+            "no": "No",
+            "n": "No",
+        }).fillna(df["Trade-in Yes/No"])
+    else:
+        df["Trade-in Clean"] = pd.NA
 
     return df
 
@@ -63,6 +104,24 @@ max_date = df["Date"].max()
 app = Dash(__name__)
 server = app.server
 
+
+def metric_card(title, value, font_size="26px"):
+    return [
+        html.Div(title, className="metric-title"),
+        html.Div(value, className="metric-value", style={"fontSize": font_size}),
+    ]
+
+
+def table_card(title, table_id):
+    return html.Div(
+        className="chart-card",
+        children=[
+            html.H3(title, style={"marginTop": "0", "marginBottom": "12px"}),
+            html.Div(id=table_id),
+        ],
+    )
+
+
 app.layout = html.Div(
     style={"fontFamily": "Arial, sans-serif", "backgroundColor": "#f7f8fa", "padding": "24px"},
     children=[
@@ -71,7 +130,7 @@ app.layout = html.Div(
             children=[
                 html.H1("Digital Leads Dashboard", style={"marginBottom": "4px"}),
                 html.P(
-                    "Basic overview of lead trends, postcode-derived states, form types, and locations.",
+                    "Overview of lead trends, postcode-derived states, form types, locations, registration details, preferences, and trade-in information.",
                     style={"color": "#666", "marginTop": "0"},
                 ),
 
@@ -135,12 +194,48 @@ app.layout = html.Div(
                 ),
 
                 html.Div(
-                    style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "20px"},
+                    className="chart-card",
+                    style={"marginBottom": "20px"},
+                    children=[dcc.Graph(id="date-trend", style={"height": "520px"})],
+                ),
+
+                html.Div(
+                    style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "20px", "marginBottom": "20px"},
                     children=[
-                        html.Div(className="chart-card", children=[dcc.Graph(id="date-trend")]),
                         html.Div(className="chart-card", children=[dcc.Graph(id="state-bar")]),
                         html.Div(className="chart-card", children=[dcc.Graph(id="form-bar")]),
                         html.Div(className="chart-card", children=[dcc.Graph(id="location-bar")]),
+                        html.Div(className="chart-card", children=[dcc.Graph(id="trade-in-bar")]),
+                    ],
+                ),
+
+                html.H2("Lead Details Summary", style={"marginTop": "28px"}),
+                html.P(
+                    "Blank values are ignored in the summary tables below.",
+                    style={"color": "#666", "marginTop": "0"},
+                ),
+
+                html.Div(
+                    style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "20px", "marginBottom": "20px"},
+                    children=[
+                        table_card("Registration Type", "registration-table"),
+                        table_card("Badge", "badge-table"),
+                        table_card("Colour", "colour-table"),
+                        table_card("Second Preference Colour", "second-preference-table"),
+                        table_card("Interior", "interior-table"),
+                        table_card("Optional Package", "optional-package-table"),
+                    ],
+                ),
+
+                html.Div(
+                    className="chart-card",
+                    children=[
+                        html.H3("Trade-in Vehicle Information", style={"marginTop": "0", "marginBottom": "12px"}),
+                        html.P(
+                            "Rows are shown only when at least one trade-in vehicle field has an entry.",
+                            style={"color": "#666", "marginTop": "0"},
+                        ),
+                        html.Div(id="trade-in-summary-table"),
                     ],
                 ),
             ],
@@ -166,6 +261,7 @@ app.index_string = """
             .metric-title { color: #666; font-size: 13px; margin-bottom: 6px; }
             .metric-value { font-size: 26px; font-weight: 700; }
             label { font-weight: 600; display: block; margin-bottom: 6px; }
+            h1, h2, h3 { color: #2b3f63; }
         </style>
     </head>
     <body>
@@ -193,6 +289,69 @@ def filter_data(start_date, end_date, states, forms):
     return filtered
 
 
+def value_count_table(dff, column, label):
+    if column not in dff.columns:
+        data = []
+    else:
+        counts = (
+            dff[column]
+            .dropna()
+            .astype("string")
+            .str.strip()
+        )
+        counts = counts[counts != ""]
+        data = counts.value_counts().reset_index()
+        data.columns = [label, "Count"]
+        data["Share"] = (data["Count"] / data["Count"].sum() * 100).round(1).astype(str) + "%" if not data.empty else []
+        data = data.to_dict("records")
+
+    return dash_table.DataTable(
+        columns=[{"name": label, "id": label}, {"name": "Count", "id": "Count"}, {"name": "Share", "id": "Share"}],
+        data=data,
+        page_size=8,
+        sort_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"}],
+    )
+
+
+def trade_in_vehicle_table(dff):
+    source_cols = ["Year", "Vehicle", "Model.1", "Odometer"]
+    display_names = {
+        "Year": "Year",
+        "Vehicle": "Vehicle",
+        "Model.1": "Model",
+        "Odometer": "Odometer",
+    }
+    existing_cols = [col for col in source_cols if col in dff.columns]
+    trade_df = dff[existing_cols].copy()
+
+    if trade_df.empty:
+        output = pd.DataFrame(columns=list(display_names.values()))
+    else:
+        has_entry = trade_df.notna().any(axis=1)
+        output = trade_df.loc[has_entry].rename(columns=display_names)
+        if "Odometer" in output.columns:
+            output["Odometer"] = output["Odometer"].apply(
+                lambda x: "" if pd.isna(x) else f"{float(x):,.0f}" if str(x).replace(".", "", 1).isdigit() else str(x)
+            )
+        output = output.fillna("")
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in output.columns],
+        data=output.to_dict("records"),
+        page_size=12,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"}],
+    )
+
+
 @app.callback(
     Output("total-leads-card", "children"),
     Output("date-range-card", "children"),
@@ -202,6 +361,14 @@ def filter_data(start_date, end_date, states, forms):
     Output("state-bar", "figure"),
     Output("form-bar", "figure"),
     Output("location-bar", "figure"),
+    Output("trade-in-bar", "figure"),
+    Output("registration-table", "children"),
+    Output("badge-table", "children"),
+    Output("colour-table", "children"),
+    Output("second-preference-table", "children"),
+    Output("interior-table", "children"),
+    Output("optional-package-table", "children"),
+    Output("trade-in-summary-table", "children"),
     Input("date-filter", "start_date"),
     Input("date-filter", "end_date"),
     Input("state-filter", "value"),
@@ -217,10 +384,10 @@ def update_dashboard(start_date, end_date, states, forms):
     top_form = "No data" if dff.empty else dff["Form"].value_counts().idxmax()
     top_location = "No data" if dff.empty else dff["Location"].value_counts().idxmax()
 
-    total_card = [html.Div("Total leads", className="metric-title"), html.Div(f"{total_leads:,}", className="metric-value")]
-    date_card = [html.Div("Date range", className="metric-title"), html.Div(date_text, className="metric-value", style={"fontSize": "18px"})]
-    form_card = [html.Div("Top form", className="metric-title"), html.Div(top_form, className="metric-value", style={"fontSize": "18px"})]
-    location_card = [html.Div("Top location", className="metric-title"), html.Div(top_location, className="metric-value", style={"fontSize": "18px"})]
+    total_card = metric_card("Total leads", f"{total_leads:,}")
+    date_card = metric_card("Date range", date_text, "18px")
+    form_card = metric_card("Top form", top_form, "18px")
+    location_card = metric_card("Top location", top_location, "18px")
 
     trend = dff.dropna(subset=["Date"]).groupby("Date").size().reset_index(name="Leads")
     fig_trend = px.line(trend, x="Date", y="Leads", markers=True, title="Lead Trend by Date")
@@ -241,7 +408,38 @@ def update_dashboard(start_date, end_date, states, forms):
     fig_location = px.bar(location_counts, x="Leads", y="Location", orientation="h", title="Top 15 Locations by Leads")
     fig_location.update_layout(yaxis={"categoryorder": "total ascending"}, margin=dict(l=20, r=20, t=55, b=20))
 
-    return total_card, date_card, form_card, location_card, fig_trend, fig_state, fig_form, fig_location
+    trade_counts = dff["Trade-in Clean"].dropna().astype("string").str.strip()
+    trade_counts = trade_counts[trade_counts != ""].value_counts().reset_index()
+    trade_counts.columns = ["Trade-in", "Leads"]
+    fig_trade = px.bar(trade_counts, x="Trade-in", y="Leads", title="Trade-in Yes/No")
+    fig_trade.update_layout(margin=dict(l=20, r=20, t=55, b=20))
+
+    registration_table = value_count_table(dff, "Registration Type", "Registration Type")
+    badge_table = value_count_table(dff, "Badge", "Badge")
+    colour_table = value_count_table(dff, "Colour", "Colour")
+    second_preference_table = value_count_table(dff, "Second-preference Colour", "Second Preference")
+    interior_table = value_count_table(dff, "Interior", "Interior")
+    optional_package_table = value_count_table(dff, "Optional Package", "Optional Package")
+    trade_summary_table = trade_in_vehicle_table(dff)
+
+    return (
+        total_card,
+        date_card,
+        form_card,
+        location_card,
+        fig_trend,
+        fig_state,
+        fig_form,
+        fig_location,
+        fig_trade,
+        registration_table,
+        badge_table,
+        colour_table,
+        second_preference_table,
+        interior_table,
+        optional_package_table,
+        trade_summary_table,
+    )
 
 
 if __name__ == "__main__":
