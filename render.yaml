@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: digital-leads-dashboard
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:server
+    plan: free
