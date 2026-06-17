@@ -5,6 +5,48 @@ import plotly.express as px
 
 DATA_PATH = "dashboard_data.csv"
 
+REALLOCATE_TO_JAC_MOTORS = {
+    "JAC Motors Werribee",
+    "Parramatta City JAC Motors",
+    "JAC Motors Townsville",
+    "JAC Motors Shepparton",
+    "JAC Motors Cairns",
+    "JAC Motors Toowoomba",
+}
+
+LOCATION_REASSIGNMENTS = {
+    **{dealer: "JAC Motors" for dealer in REALLOCATE_TO_JAC_MOTORS},
+    "South Morang JAC Motors": "Northern JAC Motors",
+}
+
+METRO_DEALERS = {
+    "Northern JAC Motors",
+    "JAC Motors Hampstead Gardens",
+    "JAC Motors Wanneroo",
+    "Sydney City JAC Motors",
+    "von Bibra JAC Motors",
+    "Cricks Highway JAC Motors",
+    "JAC Motors Liverpool",
+    "JAC Motors VicPark",
+    "JAC Motors Queanbeyan",
+    "E.L.N. JAC Motors",
+    "JAC Motors Hillcrest",
+    "JAC Motors Penrith",
+    "Keystar JAC Motors Kippa-Ring",
+    "JAC Motors Sunshine Coast - Maroochydore",
+    "Keystar JAC Motors Morayfield",
+    "Cricks Tweed JAC Motors",
+    "Ipswich JAC Motors",
+    "JAC Motors Newcastle",
+    "JAC Motors Campbelltown",
+    "JAC Motors Capalaba",
+}
+
+KPI_TARGETS = {
+    "Metro": 20,
+    "Rural": 10,
+}
+
 
 def postcode_to_state(postcode):
     """Map Australian postcode ranges to states/territories."""
@@ -42,6 +84,47 @@ def clean_text_series(series):
         .str.strip()
         .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
     )
+
+
+def apply_location_reassignments(df):
+    """Apply dealer merge/reallocation rules and keep the original value visible."""
+    if "Location" not in df.columns:
+        return df
+
+    normalised_reassignments = {
+        source.casefold(): target
+        for source, target in LOCATION_REASSIGNMENTS.items()
+    }
+    original_location = df["Location"].copy()
+    reassigned_location = (
+        df["Location"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .map(normalised_reassignments)
+    )
+
+    df["Original Location"] = original_location
+    df["Location"] = reassigned_location.fillna(df["Location"])
+    df["Reallocation Note"] = ""
+    changed = original_location.notna() & df["Location"].ne(original_location)
+    df.loc[changed, "Reallocation Note"] = (
+        original_location[changed].astype("string") + " -> " + df.loc[changed, "Location"].astype("string")
+    )
+    return df
+
+
+def add_dealer_kpi_columns(df):
+    """Classify dealers and attach Jason's lead KPI targets."""
+    if "Location" not in df.columns:
+        return df
+
+    df["Dealer Type"] = "Rural"
+    df.loc[df["Location"].isin(METRO_DEALERS), "Dealer Type"] = "Metro"
+    df.loc[df["Location"].eq("JAC Motors"), "Dealer Type"] = "Needs Jason confirmation"
+    df.loc[df["Location"].eq("Unknown"), "Dealer Type"] = "Unknown"
+    df["KPI Target"] = df["Dealer Type"].map(KPI_TARGETS)
+    return df
 
 
 def load_data():
@@ -88,6 +171,9 @@ def load_data():
     # Main chart dimensions still use Unknown so the original dashboard does not drop leads.
     for col in ["Location", "Form"]:
         df[col] = df[col].fillna("Unknown")
+
+    df = apply_location_reassignments(df)
+    df = add_dealer_kpi_columns(df)
 
     # Standardise trade-in values for the Yes/No bar chart.
     if "Trade-in Yes/No" in df.columns:
@@ -218,6 +304,19 @@ app.layout = html.Div(
                     className="chart-card",
                     style={"marginBottom": "20px"},
                     children=[dcc.Graph(id="date-trend", style={"height": "520px"})],
+                ),
+
+                html.Div(
+                    className="chart-card",
+                    style={"marginBottom": "20px"},
+                    children=[
+                        html.H3("Dealer KPI Tracking", style={"marginTop": "0", "marginBottom": "12px"}),
+                        html.P(
+                            "Metro dealers target 20 leads. Rural dealers target 10 leads. 'JAC Motors' contains leads awaiting Jason's reallocation confirmation.",
+                            style={"color": "#666", "marginTop": "0"},
+                        ),
+                        html.Div(id="dealer-kpi-table"),
+                    ],
                 ),
 
                 html.Div(
@@ -383,6 +482,43 @@ def value_count_table(dff, column, label):
     )
 
 
+def dealer_kpi_table(dff):
+    output_columns = ["Location", "Dealer Type", "Leads", "KPI Target", "Gap to KPI", "Status"]
+    if not all(col in dff.columns for col in ["Location", "Dealer Type", "KPI Target"]):
+        output = pd.DataFrame(columns=output_columns)
+    else:
+        output = (
+            dff
+            .groupby(["Location", "Dealer Type", "KPI Target"], dropna=False)
+            .size()
+            .reset_index(name="Leads")
+            .sort_values(["Dealer Type", "Leads", "Location"], ascending=[True, False, True])
+        )
+        output["KPI Target"] = output["KPI Target"].astype("Int64")
+        output["Gap to KPI"] = (output["KPI Target"] - output["Leads"]).clip(lower=0).astype("Int64")
+        output["Status"] = "On track"
+        output.loc[output["KPI Target"].isna(), ["Gap to KPI", "Status"]] = [pd.NA, "Jason to confirm"]
+        output.loc[output["Gap to KPI"].fillna(0).gt(0), "Status"] = "Below target"
+        output = output[output_columns].fillna("")
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in output_columns],
+        data=output.to_dict("records"),
+        page_size=12,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[
+            {"if": {"filter_query": "{Status} = 'Below target'"}, "backgroundColor": "#fff4e5"},
+            {"if": {"filter_query": "{Status} = 'Jason to confirm'"}, "backgroundColor": "#fff9c4"},
+            {"if": {"filter_query": "{Dealer Type} = 'Metro'"}, "fontWeight": "600"},
+            {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
+        ],
+    )
+
+
 def optional_package_count_table(dff):
     required_cols = ["Badge", "Optional Package"]
     if not all(col in dff.columns for col in required_cols):
@@ -524,6 +660,7 @@ def jac_motors_state_table(dff, selected_jac_states=None):
     Output("form-bar", "figure"),
     Output("location-bar", "figure"),
     Output("trade-in-bar", "figure"),
+    Output("dealer-kpi-table", "children"),
     Output("registration-table", "children"),
     Output("badge-table", "children"),
     Output("colour-table", "children"),
@@ -580,6 +717,7 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
     fig_trade = px.bar(trade_counts, x="Trade-in", y="Leads", title="Trade-in Yes/No")
     fig_trade.update_layout(margin=dict(l=20, r=20, t=55, b=20))
 
+    kpi_table = dealer_kpi_table(dff)
     registration_table = value_count_table(order_dff, "Registration Type", "Registration Type")
     badge_table = value_count_table(order_dff, "Badge", "Badge")
     colour_table = value_count_table(order_dff, "Colour", "Colour")
@@ -596,6 +734,7 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
         fig_form,
         fig_location,
         fig_trade,
+        kpi_table,
         registration_table,
         badge_table,
         colour_table,
