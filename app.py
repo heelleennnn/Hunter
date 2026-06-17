@@ -499,7 +499,7 @@ def dealer_kpi_table(dff):
         output["Status"] = "On track"
         output.loc[output["KPI Target"].isna(), ["Gap to KPI", "Status"]] = [pd.NA, "Jason to confirm"]
         output.loc[output["Gap to KPI"].fillna(0).gt(0), "Status"] = "Below target"
-        output = output[output_columns].fillna("")
+        output = output[output_columns].astype("object").where(pd.notna(output), "")
 
     return dash_table.DataTable(
         columns=[{"name": c, "id": c} for c in output_columns],
