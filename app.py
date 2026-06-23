@@ -16,18 +16,21 @@ KPI_TARGETS = {
 def load_dealerlist():
     """Load dealer type and combine rules from dealerlist.csv."""
     if not os.path.exists(DEALERLIST_PATH):
-        return pd.DataFrame(columns=["Dealer", "Dealer Type", "是否combine", "Combine To"])
+        return pd.DataFrame(columns=["Dealer", "Dealer Type", "Is Combined", "Combine To"])
 
     dealerlist = pd.read_csv(DEALERLIST_PATH)
-    for col in ["Dealer", "Dealer Type", "是否combine", "Combine To"]:
+    if "Is Combined" not in dealerlist.columns and "是否combine" in dealerlist.columns:
+        dealerlist = dealerlist.rename(columns={"是否combine": "Is Combined"})
+
+    for col in ["Dealer", "Dealer Type", "Is Combined", "Combine To"]:
         if col not in dealerlist.columns:
             dealerlist[col] = ""
 
     dealerlist["Dealer"] = clean_text_series(dealerlist["Dealer"])
     dealerlist["Dealer Type"] = clean_text_series(dealerlist["Dealer Type"])
     dealerlist["Combine To"] = clean_text_series(dealerlist["Combine To"])
-    dealerlist["是否combine"] = (
-        dealerlist["是否combine"]
+    dealerlist["Is Combined"] = (
+        dealerlist["Is Combined"]
         .astype("string")
         .str.strip()
         .str.casefold()
@@ -102,7 +105,7 @@ def apply_location_reassignments(df, dealerlist):
         return df
 
     combine_rules = dealerlist[
-        dealerlist["是否combine"] & dealerlist["Combine To"].notna()
+        dealerlist["Is Combined"] & dealerlist["Combine To"].notna()
     ].copy()
     normalised_reassignments = dealer_lookup(combine_rules, "Combine To")
 
@@ -230,7 +233,7 @@ def build_dealer_summary(source_df):
     output_columns = [
         "Original Location",
         "Dealer Type",
-        "是否combine",
+        "Is Combined",
         "Combine To",
         "Final Location",
         "Original Enquiries",
@@ -253,7 +256,7 @@ def build_dealer_summary(source_df):
         .rename("Final Location Enquiries")
     )
     dealer_type_map = dealer_lookup(DEALERLIST, "Dealer Type")
-    combine_map = dealer_lookup(DEALERLIST[DEALERLIST["是否combine"]], "Combine To") if not DEALERLIST.empty else {}
+    combine_map = dealer_lookup(DEALERLIST[DEALERLIST["Is Combined"]], "Combine To") if not DEALERLIST.empty else {}
 
     original_counts["Dealer Type"] = (
         original_counts["Original Location"]
@@ -271,12 +274,12 @@ def build_dealer_summary(source_df):
         .map(combine_map)
         .fillna("")
     )
-    original_counts["是否combine"] = original_counts["Combine To"].ne("")
+    original_counts["Is Combined"] = original_counts["Combine To"].ne("")
     original_counts["Final Location Enquiries"] = original_counts["Final Location"].map(final_counts).fillna(0).astype(int)
 
     return (
         original_counts[output_columns]
-        .sort_values(["是否combine", "Original Enquiries", "Original Location"], ascending=[False, False, True])
+        .sort_values(["Is Combined", "Original Enquiries", "Original Location"], ascending=[False, False, True])
         .reset_index(drop=True)
     )
 
@@ -440,7 +443,7 @@ app.layout = html.Div(
                     children=[
                         html.H3("Combined Dealer Enquiries", style={"marginTop": "0", "marginBottom": "12px"}),
                         html.P(
-                            "Shows only dealers marked 是否combine = true in dealerlist.csv, grouped by the destination dealer.",
+                            "Shows only dealers marked Is Combined = true in dealerlist.csv, grouped by the destination dealer.",
                             style={"color": "#666", "marginTop": "0"},
                         ),
                         html.Div(id="combined-dealer-summary-table"),
@@ -653,14 +656,14 @@ def dealer_summary_table(summary_df):
         output = pd.DataFrame(columns=[
             "Original Location",
             "Dealer Type",
-            "是否combine",
+            "Is Combined",
             "Combine To",
             "Final Location",
             "Original Enquiries",
             "Final Location Enquiries",
         ])
-    if "是否combine" in output.columns:
-        output["是否combine"] = output["是否combine"].map({True: "true", False: "false"}).fillna(output["是否combine"])
+    if "Is Combined" in output.columns:
+        output["Is Combined"] = output["Is Combined"].map({True: "true", False: "false"}).fillna(output["Is Combined"])
     output = output.astype("object").where(pd.notna(output), "")
 
     return dash_table.DataTable(
@@ -673,7 +676,7 @@ def dealer_summary_table(summary_df):
         style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
         style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
         style_data_conditional=[
-            {"if": {"filter_query": "{是否combine} = 'true'"}, "backgroundColor": "#fff9c4"},
+            {"if": {"filter_query": "{Is Combined} = 'true'"}, "backgroundColor": "#fff9c4"},
             {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
         ],
     )
@@ -681,10 +684,10 @@ def dealer_summary_table(summary_df):
 
 def combined_dealer_summary_table(summary_df):
     output_columns = ["Original Location", "Combine To", "Original Enquiries"]
-    if summary_df.empty or "是否combine" not in summary_df.columns:
+    if summary_df.empty or "Is Combined" not in summary_df.columns:
         output = pd.DataFrame(columns=output_columns)
     else:
-        output = summary_df[summary_df["是否combine"]].copy()
+        output = summary_df[summary_df["Is Combined"]].copy()
         output = output[output_columns].sort_values(["Combine To", "Original Enquiries"], ascending=[True, False])
     output = output.astype("object").where(pd.notna(output), "")
 

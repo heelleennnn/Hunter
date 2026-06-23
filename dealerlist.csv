@@ -1,4 +1,4 @@
-Dealer,Dealer Type,Original Leads,是否combine,Combine To,Leads After Combine,Notes
+Dealer,Dealer Type,Original Leads,Is Combined,Combine To,Leads After Combine,Notes
 Northern JAC Motors,Metro,199,false,,202,Yellow highlighted dealer; includes 3 leads combined from South Morang JAC Motors
 JAC Motors,Needs Jason confirmation,132,false,,279,Includes 147 leads combined from struck-out dealers; Jason to confirm final reallocation
 JAC Motors Werribee,Rural,67,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
