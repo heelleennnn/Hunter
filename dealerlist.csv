@@ -1,0 +1,46 @@
+Dealer,Dealer Type,Original Leads,是否combine,Combine To,Leads After Combine,Notes
+Northern JAC Motors,Metro,199,false,,202,Yellow highlighted dealer; includes 3 leads combined from South Morang JAC Motors
+JAC Motors,Needs Jason confirmation,132,false,,279,Includes 147 leads combined from struck-out dealers; Jason to confirm final reallocation
+JAC Motors Werribee,Rural,67,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
+JAC Motors Hampstead Gardens,Metro,62,false,,62,Yellow highlighted dealer
+JAC Motors Wanneroo,Metro,57,false,,57,Yellow highlighted dealer
+Sydney City JAC Motors,Metro,53,false,,53,Yellow highlighted dealer
+von Bibra JAC Motors,Metro,51,false,,51,Yellow highlighted dealer
+Cricks Highway JAC Motors,Metro,50,false,,50,Yellow highlighted dealer
+JAC Motors Midland,Rural,47,false,,47,
+Parramatta City JAC Motors,Rural,44,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
+JAC Motors Liverpool,Metro,43,false,,43,Yellow highlighted dealer
+JAC Motors VicPark,Metro,42,false,,42,Yellow highlighted dealer
+JAC Motors Queanbeyan,Metro,38,false,,38,Yellow highlighted dealer
+E.L.N. JAC Motors,Metro,34,false,,34,Yellow highlighted dealer
+JAC Motors Hillcrest,Metro,31,false,,31,Yellow highlighted dealer
+JAC Motors Penrith,Metro,30,false,,30,Yellow highlighted dealer
+Keystar JAC Motors Kippa-Ring,Metro,26,false,,26,Yellow highlighted dealer
+JAC Motors Sunshine Coast - Maroochydore,Metro,24,false,,24,Yellow highlighted dealer
+Keystar JAC Motors Morayfield,Metro,23,false,,23,Yellow highlighted dealer
+Cricks Tweed JAC Motors,Metro,22,false,,22,Yellow highlighted dealer
+JAC Motors Townsville,Rural,20,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
+JAC Motors Bendigo,Rural,18,false,,18,
+Ipswich JAC Motors,Metro,16,false,,16,Yellow highlighted dealer
+JAC Motors Newcastle,Metro,16,false,,16,Yellow highlighted dealer
+JAC Motors Sunshine Coast - Nambour,Rural,15,false,,15,
+Coral Coast JAC Motors,Rural,15,false,,15,
+JAC Motors Gawler,Rural,13,false,,13,
+Kings Cars JAC Motors,Rural,13,false,,13,
+JAC Motors Campbelltown,Metro,13,false,,13,Yellow highlighted dealer
+JAC Motors Dubbo,Rural,12,false,,12,
+JAC Motors Wodonga,Rural,12,false,,12,
+Geoff King JAC Motors,Rural,10,false,,10,
+JAC Motors Shepparton,Rural,10,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
+John Davis JAC Motors,Rural,9,false,,9,
+JAC Motors Nowra,Rural,8,false,,8,
+JAC Motors Capalaba,Metro,8,false,,8,Yellow highlighted dealer
+JAC Motors Rockhampton,Rural,6,false,,6,
+Wide Bay JAC Motors,Rural,4,false,,4,
+JAC Motors Gympie,Rural,4,false,,4,
+JAC Motors Cairns,Rural,4,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
+South Morang JAC Motors,Rural,3,true,Northern JAC Motors,0,Same dealer as Northern JAC Motors; combine leads into Northern JAC Motors
+Mildura JAC Motors,Rural,3,false,,3,
+Woodley's JAC Motors,Rural,2,false,,2,Corrected text from image encoding
+JAC Motors Toowoomba,Rural,2,true,JAC Motors,0,Struck-out dealer; move leads to JAC Motors
+JAC Motors Bunbury,Rural,2,false,,2,

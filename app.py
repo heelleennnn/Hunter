@@ -4,48 +4,36 @@ from dash import Dash, dcc, html, Input, Output, dash_table
 import plotly.express as px
 
 DATA_PATH = "dashboard_data.csv"
-
-REALLOCATE_TO_JAC_MOTORS = {
-    "JAC Motors Werribee",
-    "Parramatta City JAC Motors",
-    "JAC Motors Townsville",
-    "JAC Motors Shepparton",
-    "JAC Motors Cairns",
-    "JAC Motors Toowoomba",
-}
-
-LOCATION_REASSIGNMENTS = {
-    **{dealer: "JAC Motors" for dealer in REALLOCATE_TO_JAC_MOTORS},
-    "South Morang JAC Motors": "Northern JAC Motors",
-}
-
-METRO_DEALERS = {
-    "Northern JAC Motors",
-    "JAC Motors Hampstead Gardens",
-    "JAC Motors Wanneroo",
-    "Sydney City JAC Motors",
-    "von Bibra JAC Motors",
-    "Cricks Highway JAC Motors",
-    "JAC Motors Liverpool",
-    "JAC Motors VicPark",
-    "JAC Motors Queanbeyan",
-    "E.L.N. JAC Motors",
-    "JAC Motors Hillcrest",
-    "JAC Motors Penrith",
-    "Keystar JAC Motors Kippa-Ring",
-    "JAC Motors Sunshine Coast - Maroochydore",
-    "Keystar JAC Motors Morayfield",
-    "Cricks Tweed JAC Motors",
-    "Ipswich JAC Motors",
-    "JAC Motors Newcastle",
-    "JAC Motors Campbelltown",
-    "JAC Motors Capalaba",
-}
+DEALERLIST_PATH = "dealerlist.csv"
+WEEKLY_SUMMARY_PATH = "weekly_new_data_summary.csv"
 
 KPI_TARGETS = {
     "Metro": 20,
     "Rural": 10,
 }
+
+
+def load_dealerlist():
+    """Load dealer type and combine rules from dealerlist.csv."""
+    if not os.path.exists(DEALERLIST_PATH):
+        return pd.DataFrame(columns=["Dealer", "Dealer Type", "是否combine", "Combine To"])
+
+    dealerlist = pd.read_csv(DEALERLIST_PATH)
+    for col in ["Dealer", "Dealer Type", "是否combine", "Combine To"]:
+        if col not in dealerlist.columns:
+            dealerlist[col] = ""
+
+    dealerlist["Dealer"] = clean_text_series(dealerlist["Dealer"])
+    dealerlist["Dealer Type"] = clean_text_series(dealerlist["Dealer Type"])
+    dealerlist["Combine To"] = clean_text_series(dealerlist["Combine To"])
+    dealerlist["是否combine"] = (
+        dealerlist["是否combine"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .isin(["true", "yes", "y", "1"])
+    )
+    return dealerlist.dropna(subset=["Dealer"]).copy()
 
 
 def postcode_to_state(postcode):
@@ -86,26 +74,48 @@ def clean_text_series(series):
     )
 
 
-def apply_location_reassignments(df):
+DEALERLIST = load_dealerlist()
+
+
+def dealer_lookup(dealerlist, value_column):
+    if dealerlist.empty or value_column not in dealerlist.columns:
+        return {}
+    return (
+        dealerlist
+        .dropna(subset=["Dealer", value_column])
+        .assign(_dealer_key=lambda d: d["Dealer"].astype("string").str.strip().str.casefold())
+        .set_index("_dealer_key")[value_column]
+        .to_dict()
+    )
+
+
+def apply_location_reassignments(df, dealerlist):
     """Apply dealer merge/reallocation rules and keep the original value visible."""
     if "Location" not in df.columns:
         return df
 
-    normalised_reassignments = {
-        source.casefold(): target
-        for source, target in LOCATION_REASSIGNMENTS.items()
-    }
+    if dealerlist.empty:
+        df["Original Location"] = df["Location"]
+        df["Combine To"] = ""
+        df["Is Combined"] = False
+        df["Reallocation Note"] = ""
+        return df
+
+    combine_rules = dealerlist[
+        dealerlist["是否combine"] & dealerlist["Combine To"].notna()
+    ].copy()
+    normalised_reassignments = dealer_lookup(combine_rules, "Combine To")
+
     original_location = df["Location"].copy()
+    original_key = df["Location"].astype("string").str.strip().str.casefold()
     reassigned_location = (
-        df["Location"]
-        .astype("string")
-        .str.strip()
-        .str.casefold()
-        .map(normalised_reassignments)
+        original_key.map(normalised_reassignments)
     )
 
     df["Original Location"] = original_location
     df["Location"] = reassigned_location.fillna(df["Location"])
+    df["Combine To"] = reassigned_location.fillna("")
+    df["Is Combined"] = reassigned_location.notna()
     df["Reallocation Note"] = ""
     changed = original_location.notna() & df["Location"].ne(original_location)
     df.loc[changed, "Reallocation Note"] = (
@@ -114,14 +124,20 @@ def apply_location_reassignments(df):
     return df
 
 
-def add_dealer_kpi_columns(df):
-    """Classify dealers and attach Jason's lead KPI targets."""
+def add_dealer_kpi_columns(df, dealerlist):
+    """Classify dealers from dealerlist.csv and attach KPI targets."""
     if "Location" not in df.columns:
         return df
 
-    df["Dealer Type"] = "Rural"
-    df.loc[df["Location"].isin(METRO_DEALERS), "Dealer Type"] = "Metro"
-    df.loc[df["Location"].eq("JAC Motors"), "Dealer Type"] = "Needs Jason confirmation"
+    dealer_type_lookup = dealer_lookup(dealerlist, "Dealer Type")
+    df["Dealer Type"] = (
+        df["Location"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .map(dealer_type_lookup)
+        .fillna("Rural")
+    )
     df.loc[df["Location"].eq("Unknown"), "Dealer Type"] = "Unknown"
     df["KPI Target"] = df["Dealer Type"].map(KPI_TARGETS)
     return df
@@ -172,8 +188,8 @@ def load_data():
     for col in ["Location", "Form"]:
         df[col] = df[col].fillna("Unknown")
 
-    df = apply_location_reassignments(df)
-    df = add_dealer_kpi_columns(df)
+    df = apply_location_reassignments(df, DEALERLIST)
+    df = add_dealer_kpi_columns(df, DEALERLIST)
 
     # Standardise trade-in values for the Yes/No bar chart.
     if "Trade-in Yes/No" in df.columns:
@@ -191,6 +207,91 @@ def load_data():
 
 
 df = load_data()
+
+
+def latest_week_window(source_df):
+    valid_dates = source_df["Date"].dropna() if "Date" in source_df.columns else pd.Series(dtype="datetime64[ns]")
+    if valid_dates.empty:
+        return None, None
+    end_date = valid_dates.max()
+    start_date = end_date - pd.Timedelta(days=6)
+    return start_date, end_date
+
+
+def latest_week_data(source_df):
+    start_date, end_date = latest_week_window(source_df)
+    if start_date is None:
+        return source_df.iloc[0:0].copy(), start_date, end_date
+    weekly_df = source_df[source_df["Date"].between(start_date, end_date, inclusive="both")].copy()
+    return weekly_df, start_date, end_date
+
+
+def build_dealer_summary(source_df):
+    output_columns = [
+        "Original Location",
+        "Dealer Type",
+        "是否combine",
+        "Combine To",
+        "Final Location",
+        "Original Enquiries",
+        "Final Location Enquiries",
+    ]
+    if source_df.empty or "Original Location" not in source_df.columns:
+        return pd.DataFrame(columns=output_columns)
+
+    original_counts = (
+        source_df
+        .groupby(["Original Location", "Location"], dropna=False)
+        .size()
+        .reset_index(name="Original Enquiries")
+        .rename(columns={"Location": "Final Location"})
+    )
+    final_counts = (
+        source_df
+        .groupby("Location", dropna=False)
+        .size()
+        .rename("Final Location Enquiries")
+    )
+    dealer_type_map = dealer_lookup(DEALERLIST, "Dealer Type")
+    combine_map = dealer_lookup(DEALERLIST[DEALERLIST["是否combine"]], "Combine To") if not DEALERLIST.empty else {}
+
+    original_counts["Dealer Type"] = (
+        original_counts["Original Location"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .map(dealer_type_map)
+        .fillna("Rural")
+    )
+    original_counts["Combine To"] = (
+        original_counts["Original Location"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .map(combine_map)
+        .fillna("")
+    )
+    original_counts["是否combine"] = original_counts["Combine To"].ne("")
+    original_counts["Final Location Enquiries"] = original_counts["Final Location"].map(final_counts).fillna(0).astype(int)
+
+    return (
+        original_counts[output_columns]
+        .sort_values(["是否combine", "Original Enquiries", "Original Location"], ascending=[False, False, True])
+        .reset_index(drop=True)
+    )
+
+
+def write_weekly_summary():
+    weekly_df, start_date, end_date = latest_week_data(df)
+    summary = build_dealer_summary(weekly_df)
+    if start_date is not None:
+        summary.insert(0, "Week Start", f"{start_date:%d/%m/%Y}")
+        summary.insert(1, "Week End", f"{end_date:%d/%m/%Y}")
+    summary.to_csv(WEEKLY_SUMMARY_PATH, index=False, encoding="utf-8-sig")
+    return summary
+
+
+WEEKLY_DEALER_SUMMARY = write_weekly_summary()
 
 
 def get_exact_jac_motors_states(source_df):
@@ -316,6 +417,33 @@ app.layout = html.Div(
                             style={"color": "#666", "marginTop": "0"},
                         ),
                         html.Div(id="dealer-kpi-table"),
+                    ],
+                ),
+
+                html.Div(
+                    className="chart-card",
+                    style={"marginBottom": "20px"},
+                    children=[
+                        html.H3("Latest Week Dealer Enquiry Summary", style={"marginTop": "0", "marginBottom": "12px"}),
+                        html.P(
+                            f"This uses the latest 7-day window in the loaded data and reads dealer type/combine rules from {DEALERLIST_PATH}. A CSV is also generated as {WEEKLY_SUMMARY_PATH}.",
+                            style={"color": "#666", "marginTop": "0"},
+                        ),
+                        html.Div(id="weekly-summary-label", style={"fontWeight": "700", "marginBottom": "10px"}),
+                        html.Div(id="weekly-dealer-summary-table"),
+                    ],
+                ),
+
+                html.Div(
+                    className="chart-card",
+                    style={"marginBottom": "20px"},
+                    children=[
+                        html.H3("Combined Dealer Enquiries", style={"marginTop": "0", "marginBottom": "12px"}),
+                        html.P(
+                            "Shows only dealers marked 是否combine = true in dealerlist.csv, grouped by the destination dealer.",
+                            style={"color": "#666", "marginTop": "0"},
+                        ),
+                        html.Div(id="combined-dealer-summary-table"),
                     ],
                 ),
 
@@ -519,6 +647,59 @@ def dealer_kpi_table(dff):
     )
 
 
+def dealer_summary_table(summary_df):
+    output = summary_df.copy()
+    if output.empty:
+        output = pd.DataFrame(columns=[
+            "Original Location",
+            "Dealer Type",
+            "是否combine",
+            "Combine To",
+            "Final Location",
+            "Original Enquiries",
+            "Final Location Enquiries",
+        ])
+    if "是否combine" in output.columns:
+        output["是否combine"] = output["是否combine"].map({True: "true", False: "false"}).fillna(output["是否combine"])
+    output = output.astype("object").where(pd.notna(output), "")
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in output.columns],
+        data=output.to_dict("records"),
+        page_size=12,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[
+            {"if": {"filter_query": "{是否combine} = 'true'"}, "backgroundColor": "#fff9c4"},
+            {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
+        ],
+    )
+
+
+def combined_dealer_summary_table(summary_df):
+    output_columns = ["Original Location", "Combine To", "Original Enquiries"]
+    if summary_df.empty or "是否combine" not in summary_df.columns:
+        output = pd.DataFrame(columns=output_columns)
+    else:
+        output = summary_df[summary_df["是否combine"]].copy()
+        output = output[output_columns].sort_values(["Combine To", "Original Enquiries"], ascending=[True, False])
+    output = output.astype("object").where(pd.notna(output), "")
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in output_columns],
+        data=output.to_dict("records"),
+        page_size=8,
+        sort_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"}],
+    )
+
+
 def optional_package_count_table(dff):
     required_cols = ["Badge", "Optional Package"]
     if not all(col in dff.columns for col in required_cols):
@@ -661,6 +842,9 @@ def jac_motors_state_table(dff, selected_jac_states=None):
     Output("location-bar", "figure"),
     Output("trade-in-bar", "figure"),
     Output("dealer-kpi-table", "children"),
+    Output("weekly-summary-label", "children"),
+    Output("weekly-dealer-summary-table", "children"),
+    Output("combined-dealer-summary-table", "children"),
     Output("registration-table", "children"),
     Output("badge-table", "children"),
     Output("colour-table", "children"),
@@ -677,6 +861,8 @@ def jac_motors_state_table(dff, selected_jac_states=None):
 )
 def update_dashboard(start_date, end_date, states, forms, order_badges, jac_states):
     dff = filter_data(start_date, end_date, states, forms)
+    weekly_source = filter_data(None, None, states, forms)
+    weekly_dff, weekly_start, weekly_end = latest_week_data(weekly_source)
     order_dff = dff.copy()
     if order_badges and "Badge" in order_dff.columns:
         order_dff = order_dff[order_dff["Badge"].isin(order_badges)]
@@ -718,6 +904,14 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
     fig_trade.update_layout(margin=dict(l=20, r=20, t=55, b=20))
 
     kpi_table = dealer_kpi_table(dff)
+    weekly_summary = build_dealer_summary(weekly_dff)
+    weekly_label = (
+        "No dated data available"
+        if weekly_start is None
+        else f"Latest week: {weekly_start:%d %b %Y} to {weekly_end:%d %b %Y} | {len(weekly_dff):,} enquiries"
+    )
+    weekly_table = dealer_summary_table(weekly_summary)
+    combined_table = combined_dealer_summary_table(weekly_summary)
     registration_table = value_count_table(order_dff, "Registration Type", "Registration Type")
     badge_table = value_count_table(order_dff, "Badge", "Badge")
     colour_table = value_count_table(order_dff, "Colour", "Colour")
@@ -735,6 +929,9 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
         fig_location,
         fig_trade,
         kpi_table,
+        weekly_label,
+        weekly_table,
+        combined_table,
         registration_table,
         badge_table,
         colour_table,
