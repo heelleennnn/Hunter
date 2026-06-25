@@ -851,10 +851,10 @@ def dealer_kpi_table(dff):
         style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
         style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
         style_data_conditional=[
+            {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
             {"if": {"filter_query": "{Status} = 'Below target'"}, "backgroundColor": "#fff4e5"},
             {"if": {"filter_query": "{Status} = 'Jason to confirm'"}, "backgroundColor": "#fff9c4"},
             {"if": {"filter_query": "{Dealer Type} = 'Metro'"}, "fontWeight": "600"},
-            {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
         ],
     )
 
@@ -885,8 +885,8 @@ def dealer_summary_table(summary_df):
         style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
         style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
         style_data_conditional=[
-            {"if": {"filter_query": "{Is Combined} = 'true'"}, "backgroundColor": "#fff9c4"},
             {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
+            {"if": {"filter_query": "{Is Combined} = 'true'"}, "backgroundColor": "#fff9c4"},
         ],
     )
 
