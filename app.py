@@ -488,6 +488,31 @@ def table_card(title, table_id):
     )
 
 
+def status_legend(items):
+    return html.Div(
+        style={"display": "flex", "flexWrap": "wrap", "gap": "10px", "margin": "10px 0 14px"},
+        children=[
+            html.Div(
+                style={"display": "flex", "alignItems": "center", "gap": "6px", "fontSize": "13px", "color": "#555"},
+                children=[
+                    html.Span(
+                        style={
+                            "display": "inline-block",
+                            "width": "14px",
+                            "height": "14px",
+                            "borderRadius": "3px",
+                            "backgroundColor": color,
+                            "border": "1px solid #ddd",
+                        }
+                    ),
+                    html.Span(label),
+                ],
+            )
+            for color, label in items
+        ],
+    )
+
+
 app.layout = html.Div(
     style={"fontFamily": "Arial, sans-serif", "backgroundColor": "#f7f8fa", "padding": "24px"},
     children=[
@@ -572,6 +597,11 @@ app.layout = html.Div(
                             "Metro dealers target 20 leads. Rural dealers target 10 leads. 'JAC Motors' contains leads awaiting Jason's reallocation confirmation.",
                             style={"color": "#666", "marginTop": "0"},
                         ),
+                        status_legend([
+                            ("#fff4e5", "Below target"),
+                            ("#fff9c4", "Jason to confirm"),
+                            ("#fafafa", "Alternating row shading"),
+                        ]),
                         html.Div(id="dealer-kpi-table"),
                     ],
                 ),
@@ -585,6 +615,10 @@ app.layout = html.Div(
                             f"This uses the latest 7-day window in the loaded data and reads dealer type/combine rules from {DEALERLIST_PATH}. A CSV is also generated as {WEEKLY_SUMMARY_PATH}.",
                             style={"color": "#666", "marginTop": "0"},
                         ),
+                        status_legend([
+                            ("#fff9c4", "Rows combined by dealerlist rule"),
+                            ("#fafafa", "Alternating row shading"),
+                        ]),
                         html.Div(id="weekly-summary-label", style={"fontWeight": "700", "marginBottom": "10px"}),
                         html.Div(id="weekly-dealer-summary-table"),
                     ],
@@ -599,6 +633,9 @@ app.layout = html.Div(
                             f"Shows dealers marked Is Combined = true and Combine To = JAC Motors in {DEALERLIST_PATH}. Full unfiltered exports are generated as {JAC_MOTORS_COMBINED_SUMMARY_PATH} and {JAC_MOTORS_COMBINED_DETAIL_PATH}.",
                             style={"color": "#666", "marginTop": "0"},
                         ),
+                        status_legend([
+                            ("#fafafa", "Alternating row shading"),
+                        ]),
                         html.Div(
                             style={"maxWidth": "420px", "marginBottom": "14px"},
                             children=[
