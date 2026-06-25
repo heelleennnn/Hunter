@@ -6,11 +6,34 @@ import plotly.express as px
 DATA_PATH = "dashboard_data.csv"
 DEALERLIST_PATH = "dealerlist.csv"
 WEEKLY_SUMMARY_PATH = "weekly_new_data_summary.csv"
+JAC_MOTORS_COMBINED_SUMMARY_PATH = "jac_motors_combined_summary.csv"
+JAC_MOTORS_COMBINED_DETAIL_PATH = "jac_motors_combined_detail.csv"
 
 KPI_TARGETS = {
     "Metro": 20,
     "Rural": 10,
 }
+
+DASHBOARD_COLUMNS = [
+    "Lead ID",
+    "Date",
+    "Location",
+    "Form",
+    "Postcode",
+    "Make",
+    "Model",
+    "State",
+    "Registration Type",
+    "Badge",
+    "Colour",
+    "Second-preference Colour",
+    "Optional Package",
+    "Trade-in Yes/No",
+    "Year",
+    "Vehicle",
+    "Model.1",
+    "Odometer",
+]
 
 
 def load_dealerlist():
@@ -146,8 +169,25 @@ def add_dealer_kpi_columns(df, dealerlist):
     return df
 
 
+def normalise_dashboard_columns(df):
+    """Keep the app aligned with the de-identified dashboard_data.csv shape."""
+    df = df.copy()
+
+    # dashboard_data.csv intentionally has two "Model" headers. Pandas renames
+    # the second one to "Model.1", which the trade-in table uses.
+    if "Model.1" not in df.columns:
+        df["Model.1"] = ""
+
+    for col in DASHBOARD_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+
+    return df
+
+
 def load_data():
-    df = pd.read_csv(DATA_PATH)
+    df = pd.read_csv(DATA_PATH, dtype=str, keep_default_na=False)
+    df = normalise_dashboard_columns(df)
 
     # Parse Australian-style dates such as 11/5/26 as 11 May 2026.
     df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
@@ -284,6 +324,108 @@ def build_dealer_summary(source_df):
     )
 
 
+def build_combined_destination_summary(source_df, destination="JAC Motors"):
+    output_columns = [
+        "Original Location",
+        "Dealer Type",
+        "Combine To",
+        "Leads Moved",
+        "Destination Total Leads",
+    ]
+    required_cols = ["Original Location", "Location", "Combine To", "Is Combined"]
+    if source_df.empty or not all(col in source_df.columns for col in required_cols):
+        return pd.DataFrame(columns=output_columns)
+
+    destination_key = destination.strip().casefold()
+    moved_df = source_df[
+        source_df["Is Combined"]
+        & source_df["Combine To"].astype("string").str.strip().str.casefold().eq(destination_key)
+    ].copy()
+
+    if moved_df.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    destination_total = (
+        source_df["Location"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .eq(destination_key)
+        .sum()
+    )
+    dealer_type_map = dealer_lookup(DEALERLIST, "Dealer Type")
+
+    output = (
+        moved_df
+        .groupby(["Original Location", "Combine To"], dropna=False)
+        .size()
+        .reset_index(name="Leads Moved")
+        .sort_values(["Leads Moved", "Original Location"], ascending=[False, True])
+    )
+    output["Dealer Type"] = (
+        output["Original Location"]
+        .astype("string")
+        .str.strip()
+        .str.casefold()
+        .map(dealer_type_map)
+        .fillna("Rural")
+    )
+    output["Destination Total Leads"] = int(destination_total)
+    return output[output_columns].reset_index(drop=True)
+
+
+def build_combined_destination_detail(source_df, destination="JAC Motors"):
+    detail_columns = [
+        "Lead ID",
+        "Date",
+        "Original Location",
+        "Location",
+        "Form",
+        "Postcode",
+        "Derived State",
+        "Make",
+        "Model",
+        "State",
+        "Registration Type",
+        "Badge",
+        "Colour",
+        "Second-preference Colour",
+        "Optional Package",
+        "Trade-in Yes/No",
+        "Year",
+        "Vehicle",
+        "Model.1",
+        "Odometer",
+    ]
+    required_cols = ["Original Location", "Combine To", "Is Combined"]
+    if source_df.empty or not all(col in source_df.columns for col in required_cols):
+        return pd.DataFrame(columns=detail_columns)
+
+    destination_key = destination.strip().casefold()
+    output = source_df[
+        source_df["Is Combined"]
+        & source_df["Combine To"].astype("string").str.strip().str.casefold().eq(destination_key)
+    ].copy()
+
+    for col in detail_columns:
+        if col not in output.columns:
+            output[col] = ""
+
+    output = output[detail_columns].sort_values(["Original Location", "Date", "Lead ID"], ascending=[True, False, False])
+    return output.reset_index(drop=True)
+
+
+def format_table_dates(output, columns=None):
+    if output.empty:
+        return output
+    output = output.copy()
+    date_columns = columns or ["Date"]
+    for col in date_columns:
+        if col in output.columns:
+            output[col] = output[col].apply(lambda x: "" if pd.isna(x) else f"{x:%d/%m/%Y}" if hasattr(x, "strftime") else x)
+    return output
+
+
 def write_weekly_summary():
     weekly_df, start_date, end_date = latest_week_data(df)
     summary = build_dealer_summary(weekly_df)
@@ -295,6 +437,17 @@ def write_weekly_summary():
 
 
 WEEKLY_DEALER_SUMMARY = write_weekly_summary()
+
+
+def write_jac_motors_combined_exports():
+    summary = build_combined_destination_summary(df, "JAC Motors")
+    detail = build_combined_destination_detail(df, "JAC Motors")
+    format_table_dates(summary).to_csv(JAC_MOTORS_COMBINED_SUMMARY_PATH, index=False, encoding="utf-8-sig")
+    format_table_dates(detail).to_csv(JAC_MOTORS_COMBINED_DETAIL_PATH, index=False, encoding="utf-8-sig")
+    return summary, detail
+
+
+JAC_MOTORS_COMBINED_SUMMARY, JAC_MOTORS_COMBINED_DETAIL = write_jac_motors_combined_exports()
 
 
 def get_exact_jac_motors_states(source_df):
@@ -441,12 +594,31 @@ app.layout = html.Div(
                     className="chart-card",
                     style={"marginBottom": "20px"},
                     children=[
-                        html.H3("Combined Dealer Enquiries", style={"marginTop": "0", "marginBottom": "12px"}),
+                        html.H3("JAC Motors Combined Dealer Enquiries", style={"marginTop": "0", "marginBottom": "12px"}),
                         html.P(
-                            "Shows only dealers marked Is Combined = true in dealerlist.csv, grouped by the destination dealer.",
+                            f"Shows dealers marked Is Combined = true and Combine To = JAC Motors in {DEALERLIST_PATH}. Full unfiltered exports are generated as {JAC_MOTORS_COMBINED_SUMMARY_PATH} and {JAC_MOTORS_COMBINED_DETAIL_PATH}.",
                             style={"color": "#666", "marginTop": "0"},
                         ),
+                        html.Div(
+                            style={"maxWidth": "420px", "marginBottom": "14px"},
+                            children=[
+                                html.Label("Combine date range"),
+                                dcc.DatePickerRange(
+                                    id="combine-date-filter",
+                                    min_date_allowed=min_date,
+                                    max_date_allowed=max_date,
+                                    start_date=min_date,
+                                    end_date=max_date,
+                                    display_format="DD/MM/YYYY",
+                                    style={"width": "100%"},
+                                ),
+                            ],
+                        ),
+                        html.Div(id="combined-summary-label", style={"fontWeight": "700", "marginBottom": "10px"}),
+                        html.H4("Summary by Original Dealer", style={"marginBottom": "10px"}),
                         html.Div(id="combined-dealer-summary-table"),
+                        html.H4("Original Lead Detail", style={"marginBottom": "10px", "marginTop": "18px"}),
+                        html.Div(id="combined-dealer-detail-table"),
                     ],
                 ),
 
@@ -683,12 +855,15 @@ def dealer_summary_table(summary_df):
 
 
 def combined_dealer_summary_table(summary_df):
-    output_columns = ["Original Location", "Combine To", "Original Enquiries"]
-    if summary_df.empty or "Is Combined" not in summary_df.columns:
+    output_columns = ["Original Location", "Dealer Type", "Combine To", "Leads Moved", "Destination Total Leads"]
+    if summary_df.empty:
         output = pd.DataFrame(columns=output_columns)
     else:
-        output = summary_df[summary_df["Is Combined"]].copy()
-        output = output[output_columns].sort_values(["Combine To", "Original Enquiries"], ascending=[True, False])
+        output = summary_df.copy()
+        for col in output_columns:
+            if col not in output.columns:
+                output[col] = ""
+        output = output[output_columns].sort_values(["Combine To", "Leads Moved"], ascending=[True, False])
     output = output.astype("object").where(pd.notna(output), "")
 
     return dash_table.DataTable(
@@ -698,6 +873,23 @@ def combined_dealer_summary_table(summary_df):
         sort_action="native",
         style_table={"overflowX": "auto"},
         style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"}],
+    )
+
+
+def combined_dealer_detail_table(detail_df):
+    output = format_table_dates(detail_df)
+    output = output.astype("object").where(pd.notna(output), "")
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in output.columns],
+        data=output.to_dict("records"),
+        page_size=15,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px", "minWidth": "120px", "maxWidth": "260px", "whiteSpace": "normal"},
         style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
         style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"}],
     )
@@ -847,7 +1039,9 @@ def jac_motors_state_table(dff, selected_jac_states=None):
     Output("dealer-kpi-table", "children"),
     Output("weekly-summary-label", "children"),
     Output("weekly-dealer-summary-table", "children"),
+    Output("combined-summary-label", "children"),
     Output("combined-dealer-summary-table", "children"),
+    Output("combined-dealer-detail-table", "children"),
     Output("registration-table", "children"),
     Output("badge-table", "children"),
     Output("colour-table", "children"),
@@ -861,8 +1055,10 @@ def jac_motors_state_table(dff, selected_jac_states=None):
     Input("form-filter", "value"),
     Input("order-badge-filter", "value"),
     Input("jac-state-filter", "value"),
+    Input("combine-date-filter", "start_date"),
+    Input("combine-date-filter", "end_date"),
 )
-def update_dashboard(start_date, end_date, states, forms, order_badges, jac_states):
+def update_dashboard(start_date, end_date, states, forms, order_badges, jac_states, combine_start_date, combine_end_date):
     dff = filter_data(start_date, end_date, states, forms)
     weekly_source = filter_data(None, None, states, forms)
     weekly_dff, weekly_start, weekly_end = latest_week_data(weekly_source)
@@ -914,7 +1110,24 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
         else f"Latest week: {weekly_start:%d %b %Y} to {weekly_end:%d %b %Y} | {len(weekly_dff):,} enquiries"
     )
     weekly_table = dealer_summary_table(weekly_summary)
-    combined_table = combined_dealer_summary_table(weekly_summary)
+    combine_dff = filter_data(combine_start_date, combine_end_date, [], [])
+    jac_combined_summary = build_combined_destination_summary(combine_dff, "JAC Motors")
+    jac_combined_detail = build_combined_destination_detail(combine_dff, "JAC Motors")
+    combine_min = combine_dff["Date"].min()
+    combine_max = combine_dff["Date"].max()
+    moved_total = int(jac_combined_summary["Leads Moved"].sum()) if not jac_combined_summary.empty else 0
+    destination_total = (
+        int(jac_combined_summary["Destination Total Leads"].iloc[0])
+        if not jac_combined_summary.empty
+        else 0
+    )
+    combined_label = (
+        "No dated data available"
+        if pd.isna(combine_min)
+        else f"Selected range: {combine_min:%d %b %Y} to {combine_max:%d %b %Y} | {moved_total:,} moved leads | JAC Motors total after combine: {destination_total:,}"
+    )
+    combined_table = combined_dealer_summary_table(jac_combined_summary)
+    combined_detail_table = combined_dealer_detail_table(jac_combined_detail)
     registration_table = value_count_table(order_dff, "Registration Type", "Registration Type")
     badge_table = value_count_table(order_dff, "Badge", "Badge")
     colour_table = value_count_table(order_dff, "Colour", "Colour")
@@ -934,7 +1147,9 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
         kpi_table,
         weekly_label,
         weekly_table,
+        combined_label,
         combined_table,
+        combined_detail_table,
         registration_table,
         badge_table,
         colour_table,
