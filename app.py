@@ -14,6 +14,16 @@ KPI_TARGETS = {
     "Rural": 10,
 }
 
+DEALERLIST_COLUMNS = [
+    "Dealer",
+    "Dealer Type",
+    "Original Leads",
+    "Is Combined",
+    "Combine To",
+    "Leads After Combine",
+    "Notes",
+]
+
 DASHBOARD_COLUMNS = [
     "Lead ID",
     "Date",
@@ -100,7 +110,88 @@ def clean_text_series(series):
     )
 
 
+def normalise_dealer_key(series):
+    return (
+        series
+        .astype("string")
+        .str.strip()
+        .str.replace("’", "'", regex=False)
+        .str.replace("‘", "'", regex=False)
+        .str.replace("`", "'", regex=False)
+        .str.casefold()
+    )
+
+
+def ensure_dashboard_locations_in_dealerlist():
+    """Append new dashboard locations to dealerlist.csv with unknown fields blank."""
+    if not os.path.exists(DATA_PATH):
+        return []
+
+    try:
+        locations = pd.read_csv(DATA_PATH, usecols=["Location"], dtype=str, keep_default_na=False)
+    except (ValueError, FileNotFoundError):
+        return []
+
+    dashboard_locations = (
+        locations["Location"]
+        .astype("string")
+        .str.strip()
+        .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
+        .dropna()
+        .drop_duplicates()
+    )
+    if dashboard_locations.empty:
+        return []
+
+    if os.path.exists(DEALERLIST_PATH):
+        dealerlist_raw = pd.read_csv(DEALERLIST_PATH, dtype=str, keep_default_na=False)
+    else:
+        dealerlist_raw = pd.DataFrame(columns=DEALERLIST_COLUMNS)
+
+    for col in DEALERLIST_COLUMNS:
+        if col not in dealerlist_raw.columns:
+            dealerlist_raw[col] = ""
+
+    existing_keys = set(
+        normalise_dealer_key(dealerlist_raw["Dealer"])
+        .dropna()
+    )
+    new_dealers = [
+        dealer
+        for dealer in dashboard_locations
+        if normalise_dealer_key(pd.Series([dealer])).iloc[0] not in existing_keys
+    ]
+    if not new_dealers:
+        return []
+
+    new_rows = []
+    for dealer in new_dealers:
+        row = {col: "" for col in dealerlist_raw.columns}
+        row["Dealer"] = dealer
+        row["Is Combined"] = "false"
+        row["Notes"] = "Auto-added from dashboard_data.csv; please fill Dealer Type and combine rules if needed."
+        new_rows.append(row)
+
+    dealerlist_updated = pd.concat([dealerlist_raw, pd.DataFrame(new_rows)], ignore_index=True)
+    dealerlist_updated.to_csv(DEALERLIST_PATH, index=False, encoding="utf-8-sig")
+    return new_dealers
+
+
+NEW_DEALERS_ADDED = ensure_dashboard_locations_in_dealerlist()
 DEALERLIST = load_dealerlist()
+
+
+def dealerlist_review_items(dealerlist):
+    if dealerlist.empty:
+        return []
+    review_df = dealerlist[
+        dealerlist["Dealer Type"].isna()
+        | dealerlist["Dealer Type"].astype("string").str.strip().eq("")
+    ].copy()
+    return sorted(review_df["Dealer"].dropna().astype("string").tolist())
+
+
+DEALERLIST_REVIEW_ITEMS = dealerlist_review_items(DEALERLIST)
 
 
 def dealer_lookup(dealerlist, value_column):
@@ -109,10 +200,17 @@ def dealer_lookup(dealerlist, value_column):
     return (
         dealerlist
         .dropna(subset=["Dealer", value_column])
-        .assign(_dealer_key=lambda d: d["Dealer"].astype("string").str.strip().str.casefold())
+        .assign(_dealer_key=lambda d: normalise_dealer_key(d["Dealer"]))
         .set_index("_dealer_key")[value_column]
         .to_dict()
     )
+
+
+def apply_dealer_type(source, dealer_type_lookup, known_dealer_keys):
+    keys = normalise_dealer_key(source)
+    dealer_type = keys.map(dealer_type_lookup)
+    dealer_type = dealer_type.mask(dealer_type.isna() & keys.isin(known_dealer_keys), "Needs dealer info")
+    return dealer_type.fillna("Rural")
 
 
 def apply_location_reassignments(df, dealerlist):
@@ -133,7 +231,7 @@ def apply_location_reassignments(df, dealerlist):
     normalised_reassignments = dealer_lookup(combine_rules, "Combine To")
 
     original_location = df["Location"].copy()
-    original_key = df["Location"].astype("string").str.strip().str.casefold()
+    original_key = normalise_dealer_key(df["Location"])
     reassigned_location = (
         original_key.map(normalised_reassignments)
     )
@@ -156,14 +254,10 @@ def add_dealer_kpi_columns(df, dealerlist):
         return df
 
     dealer_type_lookup = dealer_lookup(dealerlist, "Dealer Type")
-    df["Dealer Type"] = (
-        df["Location"]
-        .astype("string")
-        .str.strip()
-        .str.casefold()
-        .map(dealer_type_lookup)
-        .fillna("Rural")
+    known_dealer_keys = set(
+        normalise_dealer_key(dealerlist["Dealer"]).dropna()
     )
+    df["Dealer Type"] = apply_dealer_type(df["Location"], dealer_type_lookup, known_dealer_keys)
     df.loc[df["Location"].eq("Unknown"), "Dealer Type"] = "Unknown"
     df["KPI Target"] = df["Dealer Type"].map(KPI_TARGETS)
     return df
@@ -296,15 +390,15 @@ def build_dealer_summary(source_df):
         .rename("Final Location Enquiries")
     )
     dealer_type_map = dealer_lookup(DEALERLIST, "Dealer Type")
+    known_dealer_keys = set(
+        normalise_dealer_key(DEALERLIST["Dealer"]).dropna()
+    )
     combine_map = dealer_lookup(DEALERLIST[DEALERLIST["Is Combined"]], "Combine To") if not DEALERLIST.empty else {}
 
-    original_counts["Dealer Type"] = (
-        original_counts["Original Location"]
-        .astype("string")
-        .str.strip()
-        .str.casefold()
-        .map(dealer_type_map)
-        .fillna("Rural")
+    original_counts["Dealer Type"] = apply_dealer_type(
+        original_counts["Original Location"],
+        dealer_type_map,
+        known_dealer_keys,
     )
     original_counts["Combine To"] = (
         original_counts["Original Location"]
@@ -354,6 +448,9 @@ def build_combined_destination_summary(source_df, destination="JAC Motors"):
         .sum()
     )
     dealer_type_map = dealer_lookup(DEALERLIST, "Dealer Type")
+    known_dealer_keys = set(
+        normalise_dealer_key(DEALERLIST["Dealer"]).dropna()
+    )
 
     output = (
         moved_df
@@ -363,12 +460,7 @@ def build_combined_destination_summary(source_df, destination="JAC Motors"):
         .sort_values(["Leads Moved", "Original Location"], ascending=[False, True])
     )
     output["Dealer Type"] = (
-        output["Original Location"]
-        .astype("string")
-        .str.strip()
-        .str.casefold()
-        .map(dealer_type_map)
-        .fillna("Rural")
+        apply_dealer_type(output["Original Location"], dealer_type_map, known_dealer_keys)
     )
     output["Destination Total Leads"] = int(destination_total)
     return output[output_columns].reset_index(drop=True)
@@ -513,6 +605,43 @@ def status_legend(items):
     )
 
 
+def dealerlist_notice():
+    if not NEW_DEALERS_ADDED and not DEALERLIST_REVIEW_ITEMS:
+        return None
+
+    rows = pd.DataFrame({
+        "Dealer": DEALERLIST_REVIEW_ITEMS,
+        "Action Needed": ["Fill Dealer Type and combine rules if needed"] * len(DEALERLIST_REVIEW_ITEMS),
+    })
+
+    return html.Div(
+        className="chart-card dealerlist-notice",
+        style={"margin": "18px 0 20px", "borderLeft": "5px solid #f2b705"},
+        children=[
+            html.H3("Dealerlist Needs Review", style={"marginTop": "0", "marginBottom": "8px"}),
+            html.P(
+                (
+                    f"{len(NEW_DEALERS_ADDED)} new dealer(s) were auto-added to {DEALERLIST_PATH}. "
+                    if NEW_DEALERS_ADDED
+                    else ""
+                )
+                + f"{len(DEALERLIST_REVIEW_ITEMS)} dealer(s) still need Dealer Type or combine details.",
+                style={"color": "#5f4b00", "marginTop": "0"},
+            ),
+            dash_table.DataTable(
+                columns=[{"name": c, "id": c} for c in rows.columns],
+                data=rows.to_dict("records"),
+                page_size=8,
+                sort_action="native",
+                style_table={"overflowX": "auto"},
+                style_cell={"textAlign": "left", "padding": "8px", "fontFamily": "Arial", "fontSize": "13px"},
+                style_header={"fontWeight": "700", "backgroundColor": "#fff4cc"},
+                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fffdf4"}],
+            ),
+        ],
+    )
+
+
 app.layout = html.Div(
     style={"fontFamily": "Arial, sans-serif", "backgroundColor": "#f7f8fa", "padding": "24px"},
     children=[
@@ -524,6 +653,7 @@ app.layout = html.Div(
                     "Overview of lead trends, postcode-derived states, form types, locations, registration details, preferences, and trade-in information.",
                     style={"color": "#666", "marginTop": "0"},
                 ),
+                dealerlist_notice(),
 
                 html.Div(
                     style={
@@ -600,6 +730,7 @@ app.layout = html.Div(
                         status_legend([
                             ("#fff4e5", "Below target"),
                             ("#fff9c4", "Jason to confirm"),
+                            ("#ffe8cc", "Needs dealer info"),
                             ("#fafafa", "Alternating row shading"),
                         ]),
                         html.Div(id="dealer-kpi-table"),
@@ -838,6 +969,7 @@ def dealer_kpi_table(dff):
         output["Gap to KPI"] = (output["KPI Target"] - output["Leads"]).clip(lower=0).astype("Int64")
         output["Status"] = "On track"
         output.loc[output["KPI Target"].isna(), ["Gap to KPI", "Status"]] = [pd.NA, "Jason to confirm"]
+        output.loc[output["Dealer Type"].eq("Needs dealer info"), "Status"] = "Needs dealer info"
         output.loc[output["Gap to KPI"].fillna(0).gt(0), "Status"] = "Below target"
         output = output[output_columns].astype("object").where(pd.notna(output), "")
 
@@ -854,6 +986,7 @@ def dealer_kpi_table(dff):
             {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
             {"if": {"filter_query": "{Status} = 'Below target'"}, "backgroundColor": "#fff4e5"},
             {"if": {"filter_query": "{Status} = 'Jason to confirm'"}, "backgroundColor": "#fff9c4"},
+            {"if": {"filter_query": "{Status} = 'Needs dealer info'"}, "backgroundColor": "#ffe8cc"},
             {"if": {"filter_query": "{Dealer Type} = 'Metro'"}, "fontWeight": "600"},
         ],
     )
