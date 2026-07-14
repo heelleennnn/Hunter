@@ -5,6 +5,8 @@ import plotly.express as px
 
 DATA_PATH = "dashboard_data.csv"
 DEALERLIST_PATH = "dealerlist.csv"
+LEAD_ID_MATCH_CHECK_PATH = "lead_id_match_check.csv"
+REPEATED_EMAIL_LEADS_PATH = "repeated_email_leads.csv"
 WEEKLY_SUMMARY_PATH = "weekly_new_data_summary.csv"
 JAC_MOTORS_COMBINED_SUMMARY_PATH = "jac_motors_combined_summary.csv"
 JAC_MOTORS_COMBINED_DETAIL_PATH = "jac_motors_combined_detail.csv"
@@ -279,6 +281,23 @@ def normalise_dashboard_columns(df):
     return df
 
 
+def load_identity_data():
+    identity_columns = ["Lead ID", "Name", "Surname", "Email"]
+    if not os.path.exists(LEAD_ID_MATCH_CHECK_PATH):
+        return pd.DataFrame(columns=identity_columns)
+
+    identity_df = pd.read_csv(LEAD_ID_MATCH_CHECK_PATH, dtype=str, keep_default_na=False)
+    for col in identity_columns:
+        if col not in identity_df.columns:
+            identity_df[col] = ""
+
+    identity_df = identity_df[identity_columns].copy()
+    for col in identity_columns:
+        identity_df[col] = identity_df[col].astype("string").str.strip()
+    identity_df["Email Key"] = identity_df["Email"].str.casefold()
+    return identity_df.drop_duplicates(subset=["Lead ID"], keep="first")
+
+
 def load_data():
     df = pd.read_csv(DATA_PATH, dtype=str, keep_default_na=False)
     df = normalise_dashboard_columns(df)
@@ -344,6 +363,7 @@ def load_data():
 
 
 df = load_data()
+IDENTITY_DATA = load_identity_data()
 
 
 def latest_week_window(source_df):
@@ -507,6 +527,48 @@ def build_combined_destination_detail(source_df, destination="JAC Motors"):
     return output.reset_index(drop=True)
 
 
+def build_repeated_email_leads(source_df):
+    output_columns = [
+        "Email",
+        "Email Lead Count",
+        "Lead ID",
+        "Date",
+        "Name",
+        "Surname",
+        "Location",
+        "Form",
+    ]
+    if source_df.empty or IDENTITY_DATA.empty or "Lead ID" not in source_df.columns:
+        return pd.DataFrame(columns=output_columns)
+
+    detail_columns = ["Lead ID", "Date", "Location", "Form"]
+    detail = source_df[[col for col in detail_columns if col in source_df.columns]].copy()
+    detail["Lead ID"] = detail["Lead ID"].astype("string").str.strip()
+    repeated = detail.merge(IDENTITY_DATA, on="Lead ID", how="left")
+    repeated = repeated[
+        repeated["Email Key"].notna()
+        & repeated["Email Key"].astype("string").str.strip().ne("")
+    ].copy()
+    if repeated.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    email_counts = repeated["Email Key"].value_counts()
+    repeated = repeated[repeated["Email Key"].isin(email_counts[email_counts.gt(1)].index)].copy()
+    if repeated.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    repeated["Email Lead Count"] = repeated["Email Key"].map(email_counts).astype(int)
+    for col in output_columns:
+        if col not in repeated.columns:
+            repeated[col] = ""
+
+    output = repeated[output_columns].sort_values(
+        ["Email Lead Count", "Email", "Date", "Lead ID"],
+        ascending=[False, True, False, False],
+    )
+    return output.reset_index(drop=True)
+
+
 def format_table_dates(output, columns=None):
     if output.empty:
         return output
@@ -540,6 +602,15 @@ def write_jac_motors_combined_exports():
 
 
 JAC_MOTORS_COMBINED_SUMMARY, JAC_MOTORS_COMBINED_DETAIL = write_jac_motors_combined_exports()
+
+
+def write_repeated_email_export():
+    repeated = build_repeated_email_leads(df)
+    format_table_dates(repeated).to_csv(REPEATED_EMAIL_LEADS_PATH, index=False, encoding="utf-8-sig")
+    return repeated
+
+
+REPEATED_EMAIL_LEADS = write_repeated_email_export()
 
 
 def get_exact_jac_motors_states(source_df):
@@ -734,6 +805,20 @@ app.layout = html.Div(
                             ("#fafafa", "Alternating row shading"),
                         ]),
                         html.Div(id="dealer-kpi-table"),
+                    ],
+                ),
+
+                html.Div(
+                    className="chart-card",
+                    style={"marginBottom": "20px"},
+                    children=[
+                        html.H3("Repeated Email Leads", style={"marginTop": "0", "marginBottom": "12px"}),
+                        html.P(
+                            f"Shows leads where the same email appears more than once in the selected filters. Full unfiltered export is generated as {REPEATED_EMAIL_LEADS_PATH}.",
+                            style={"color": "#666", "marginTop": "0"},
+                        ),
+                        html.Div(id="repeated-email-label", style={"fontWeight": "700", "marginBottom": "10px"}),
+                        html.Div(id="repeated-email-table"),
                     ],
                 ),
 
@@ -1065,6 +1150,31 @@ def combined_dealer_detail_table(detail_df):
     )
 
 
+def repeated_email_leads_table(repeated_df):
+    output = format_table_dates(repeated_df)
+    output = output.astype("object").where(pd.notna(output), "")
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in output.columns],
+        data=output.to_dict("records"),
+        page_size=15,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "textAlign": "left",
+            "padding": "8px",
+            "fontFamily": "Arial",
+            "fontSize": "13px",
+            "minWidth": "110px",
+            "maxWidth": "260px",
+            "whiteSpace": "normal",
+        },
+        style_header={"fontWeight": "700", "backgroundColor": "#f1f4f8"},
+        style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"}],
+    )
+
+
 def optional_package_count_table(dff):
     required_cols = ["Badge", "Optional Package"]
     if not all(col in dff.columns for col in required_cols):
@@ -1207,6 +1317,8 @@ def jac_motors_state_table(dff, selected_jac_states=None):
     Output("location-bar", "figure"),
     Output("trade-in-bar", "figure"),
     Output("dealer-kpi-table", "children"),
+    Output("repeated-email-label", "children"),
+    Output("repeated-email-table", "children"),
     Output("weekly-summary-label", "children"),
     Output("weekly-dealer-summary-table", "children"),
     Output("combined-summary-label", "children"),
@@ -1273,6 +1385,12 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
     fig_trade.update_layout(margin=dict(l=20, r=20, t=55, b=20))
 
     kpi_table = dealer_kpi_table(dff)
+    repeated_email_df = build_repeated_email_leads(dff)
+    repeated_email_groups = repeated_email_df["Email"].nunique() if not repeated_email_df.empty else 0
+    repeated_email_label = (
+        f"{repeated_email_groups:,} repeated email group(s) | {len(repeated_email_df):,} lead rows"
+    )
+    repeated_email_table = repeated_email_leads_table(repeated_email_df)
     weekly_summary = build_dealer_summary(weekly_dff)
     weekly_label = (
         "No dated data available"
@@ -1315,6 +1433,8 @@ def update_dashboard(start_date, end_date, states, forms, order_badges, jac_stat
         fig_location,
         fig_trade,
         kpi_table,
+        repeated_email_label,
+        repeated_email_table,
         weekly_label,
         weekly_table,
         combined_label,
