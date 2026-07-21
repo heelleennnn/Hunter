@@ -1,4 +1,28 @@
-Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Colour,Second-preference Colour,Optional Package,Trade-in Yes/No,Year,Vehicle,Model,Odometer
+﻿Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Colour,Second-preference Colour,Optional Package,Trade-in Yes/No,Year,Vehicle,Model,Odometer
+3268826,21/7/2026,JAC Motors Wanneroo,Register Your Interest JAC Hunter,6007,,,,,,,,,,,,,
+3268746,21/7/2026,JAC Motors Queanbeyan,Register Your Interest JAC Hunter,2582,,,,,,,,,,,,,
+3268513,20/7/2026,Northern JAC Motors,HunterBuild,3076,JAC,Hunter,VIC,Personal,Hunter Pro 4x4,Hammerhead,I would like to wait for my preferred colour.,,Yes,Mitsubishi,Outlander,2018,109000
+3268264,20/7/2026,Northern JAC Motors,HunterBuild,3076,JAC,Hunter,NSW,Personal,Hunter X 4x4,Ochre,Hammerhead,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",Yes,,,,
+3267837,19/7/2026,Northern JAC Motors,HunterBuild,3140,JAC,Hunter,VIC,Personal,Hunter X 4x4,Ochre,,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",Yes,,Landrover,Discovery 5,192000
+3267454,17/7/2026,Cricks Highway JAC Motors,HunterBuild,4130,JAC,Hunter,NSW,Personal,Hunter Pro 4x4,Ochre,Stratus,,Yes,2025,Mercedes Benz,GLA200,15000
+3267201,17/7/2026,JAC Motors Midland,HunterBuild,6330,JAC,Hunter,NSW,Personal,Hunter X 4x4,Hammerhead,,Front & Rear Diff Lock - Already included,Yes,Ford Ranger,Crew Cab 4x4,Xlt,105035
+3267189,17/7/2026,Northern JAC Motors,HunterBuild,3076,JAC,Hunter,VIC,Personal,Hunter Pro 4x4,Ochre,,,No,,,,
+3267114,17/7/2026,JAC Motors Cardiff,HunterBuild,2283,JAC,Hunter,NSW,Business,Hunter X 4x4,Stratus,I would like to wait for my preferred colour.,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",Yes,Mitsubishi,Triton Space Cab,GLX+,120000
+3266962,17/7/2026,Northern JAC Motors,Register Your Interest JAC Hunter,3094,,,,,,,,,,,,,
+3266957,17/7/2026,Northern JAC Motors,Register Your Interest JAC Hunter,3094,,,,,,,,,,,,,
+3266925,16/7/2026,JAC Motors Wanneroo,HunterBuild,6335,JAC,Hunter,WA,Personal,Hunter X 4x4,Stratus,I would like to wait for my preferred colour.,Front & Rear Diff Lock - Already included,Yes,2024,Jac,T9 haven,22000
+3266894,16/7/2026,JAC Motors Penrith,HunterBuild,2750,JAC,Hunter,NSW,Business,Hunter X 4x4,Stratus,Huntsman,Front & Rear Diff Lock - Already included,Yes,2013,Toyota,Camry,215000
+3266832,16/7/2026,Sydney City JAC Motors,Reserve Your Build,N/A,JAC,Hunter,NSW,Personal,Hunter X 4x4,Stratus,Hammerhead,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",Yes,2104,Volkswagen,Caddy,93000
+3266749,16/7/2026,JAC Motors Wanneroo,Reserve Your Build,N/A,JAC,Hunter,WA,Personal,Hunter X 4x4,Karak,I would like to wait for my preferred colour.,Front & Rear Diff Lock - Already included,,,,,
+3266718,16/7/2026,JAC Motors Dandenong,Reserve Your Build,N/A,JAC,Hunter,NSW,Personal,Hunter X 4x4,Karak,Karak,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",No,,,,
+3266707,16/7/2026,JAC Motors,Register Your Interest JAC Hunter,2320,,,,,,,,,,,,,
+3266511,16/7/2026,Coral Coast JAC Motors,Register Your Interest JAC Hunter,4805,,,,,,,,,,,,,
+3266500,16/7/2026,JAC Motors Bendigo,Reserve Your Build,N/A,JAC,Hunter,VIC,Personal,Hunter X 4x4,Hammerhead,Huntsman,Front & Rear Diff Lock - Already included,No,,,,
+3266300,15/7/2026,JAC Motors Queanbeyan,Register Your Interest JAC Hunter,2906,,,,,,,,,,,,,
+3266237,15/7/2026,Sydney City JAC Motors,Register Your Interest JAC Hunter,2233,,,,,,,,,,,,,
+3265891,14/7/2026,JAC Motors Bendigo,HunterBuild,3753,JAC,Hunter,NSW,,Hunter Pro 4x4,Stratus,I would like to wait for my preferred colour.,,Yes,2023,Ldv,Max lux,77500
+3265516,14/7/2026,Keystar JAC Motors Morayfield,HunterBuild,4510,JAC,Hunter,QLD,Personal,Hunter Pro 4x4,Ochre,,,No,,,,
+3265436,14/7/2026,JAC Motors Capalaba,Register Your Interest JAC Hunter,4157,,,,,,,,,,,,,
 3265335,14/7/2026,Sydney City JAC Motors,HunterBuild,2224,JAC,Hunter,NSW,Business,Hunter X 4x4,Stratus,I would like to wait for my preferred colour.,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",Yes,2020,LDV,T60 Luxe Mega Tub,78000
 3265299,14/7/2026,Sydney City JAC Motors,Register Your Interest JAC Hunter,2026,,,,,,,,,,,,,
 3265233,13/7/2026,Northern JAC Motors,HunterBuild,3134,JAC,Hunter,VIC,Personal,Hunter X 4x4,Hammerhead,I would like to wait for my preferred colour.,"Front & Rear Diff Lock - Already included, Power Sunroof $1,500",No,,,,
@@ -476,7 +500,7 @@ Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Col
 3231526,6/5/2026,JAC Motors Penrith,Reserve Your Build,N/A,JAC,Hunter,NSW,Personal,Hunter Pro 4x4,Huntsman,Ochre,,Yes,2009,Holden,CAPTIVA,220000
 3231466,6/5/2026,Ipswich JAC Motors,HunterBuild,4304,JAC,Hunter,QLD,Personal,Hunter X 4x4,Hammerhead,Karak,,No,,,,
 3231449,6/5/2026,JAC Motors Hampstead Gardens,HunterBuild,5250,JAC,Hunter,SA,Personal,Hunter Pro 4x4,Huntsman,Hammerhead,,Yes,2024,JAC,T9 Haven,9000
-3231412,6/5/2026,JAC Motors Parramatta - Coming Soon,Register Your Interest JAC Hunter,2142,,,,,,,,,,,,,
+3231412,6/5/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2142,,,,,,,,,,,,,
 3231403,6/5/2026,JAC Motors Midland,HunterBuild,6166,JAC,Hunter,NSW,Personal,Hunter Pro 4x4,Karak,I would like to wait for my preferred colour.,,Yes,2021,Ford,Ranger Wildtrak x,65000
 3231399,6/5/2026,Northern JAC Motors,HunterBuild,3192,JAC,Hunter,VIC,Business,Hunter Pro 4x4,Hammerhead,Huntsman,,No,,,,
 3231242,6/5/2026,JAC Motors Sunshine Coast - Nambour,Reserve Your Build,N/A,JAC,Hunter,QLD,Personal,Hunter X 4x4,Ochre,Hammerhead,,No,,,,
@@ -646,7 +670,7 @@ Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Col
 3227710,29/4/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2153,,,,,,,,,,,,,
 3227545,29/4/2026,JAC Motors Werribee,Register Your Interest JAC Hunter,3027,,,,,,,,,,,,,
 3227484,29/4/2026,JAC Motors Werribee,Register Your Interest JAC Hunter,3024,,,,,,,,,,,,,
-3227418,28/4/2026,JAC Motors Parramatta - Coming Soon,Register Your Interest JAC Hunter,2112,,,,,,,,,,,,,
+3227418,28/4/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2112,,,,,,,,,,,,,
 3227393,28/4/2026,Northern JAC Motors,Register Your Interest JAC Hunter,3810,,,,,,,,,,,,,
 3227381,28/4/2026,JAC Motors Penrith,Register Your Interest JAC Hunter,2745,,,,,,,,,,,,,
 3227320,28/4/2026,JAC Motors Liverpool,Register Your Interest JAC Hunter,2170,,,,,,,,,,,,,
@@ -860,7 +884,7 @@ Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Col
 3220548,15/4/2026,JAC Motors Queanbeyan,Register Your Interest JAC Hunter,2611,,,,,,,,,,,,,
 3220546,15/4/2026,JAC Motors,Register Your Interest JAC Hunter,2529,,,,,,,,,,,,,
 3220540,15/4/2026,E.L.N. JAC Motors,Register Your Interest JAC Hunter,2259,,,,,,,,,,,,,
-3220536,15/4/2026,JAC Motors Parramatta - Coming Soon,Register Your Interest JAC Hunter,2145,,,,,,,,,,,,,
+3220536,15/4/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2145,,,,,,,,,,,,,
 3220530,15/4/2026,JAC Motors Midland,Register Your Interest JAC Hunter,6076,,,,,,,,,,,,,
 3220525,15/4/2026,Cricks Highway JAC Motors,Register Your Interest JAC Hunter,4165,,,,,,,,,,,,,
 3220520,15/4/2026,JAC Motors Bendigo,Register Your Interest JAC Hunter,3556,,,,,,,,,,,,,
@@ -892,7 +916,7 @@ Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Col
 3220134,15/4/2026,JAC Motors Hampstead Gardens,Register Your Interest JAC Hunter,5051,,,,,,,,,,,,,
 3220107,15/4/2026,Kings Cars JAC Motors,Register Your Interest JAC Hunter,3352,,,,,,,,,,,,,
 3220079,15/4/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2099,,,,,,,,,,,,,
-3220064,15/4/2026,JAC Motors Parramatta - Coming Soon,Register Your Interest JAC Hunter,2117,,,,,,,,,,,,,
+3220064,15/4/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2117,,,,,,,,,,,,,
 3220060,15/4/2026,JAC Motors Werribee,Register Your Interest JAC Hunter,3030,,,,,,,,,,,,,
 3220003,15/4/2026,Woodley’s JAC Motors,Register Your Interest JAC Hunter,2340,,,,,,,,,,,,,
 3220000,15/4/2026,Northern JAC Motors,Register Your Interest JAC Hunter,3199,,,,,,,,,,,,,
@@ -1034,7 +1058,7 @@ Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Col
 3218053,11/4/2026,JAC Motors Bendigo,Register Your Interest JAC Hunter,3523,,,,,,,,,,,,,
 3218039,11/4/2026,Northern JAC Motors,Register Your Interest JAC Hunter,3198,,,,,,,,,,,,,
 3218030,11/4/2026,JAC Motors,Register Your Interest JAC Hunter,7015,,,,,,,,,,,,,
-3218004,11/4/2026,JAC Motors Parramatta - Coming Soon,Register Your Interest JAC Hunter,2145,,,,,,,,,,,,,
+3218004,11/4/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2145,,,,,,,,,,,,,
 3217995,11/4/2026,JAC Motors Midland,Register Your Interest JAC Hunter,6073,,,,,,,,,,,,,
 3217989,11/4/2026,Northern JAC Motors,Register Your Interest JAC Hunter,3182,,,,,,,,,,,,,
 3217980,11/4/2026,JAC Motors,Register Your Interest JAC Hunter,2530,,,,,,,,,,,,,
@@ -1296,7 +1320,7 @@ Lead ID,Date,Location,Form,Postcode,Make,Model,State,Registration Type,Badge,Col
 3202183,13/3/2026,Keystar JAC Motors Kippa-Ring,Register Your Interest JAC Hunter,4051,,,,,,,,,,,,,
 3202172,13/3/2026,JAC Motors VicPark,Register Your Interest JAC Hunter,6110,,,,,,,,,,,,,
 3201937,13/3/2026,JAC Motors Cairns,Register Your Interest JAC Hunter,4870,,,,,,,,,,,,,
-3201756,12/3/2026,JAC Motors Parramatta - Coming Soon,Register Your Interest JAC Hunter,2161,,,,,,,,,,,,,
+3201756,12/3/2026,Parramatta City JAC Motors,Register Your Interest JAC Hunter,2161,,,,,,,,,,,,,
 3201566,12/3/2026,JAC Motors Midland,Register Your Interest JAC Hunter,6056,,,,,,,,,,,,,
 3201338,12/3/2026,Warrnambool JAC Motors,Register Your Interest JAC Hunter,3280,,,,,,,,,,,,,
 3201195,12/3/2026,JAC Motors Gawler,Register Your Interest JAC Hunter,5351,,,,,,,,,,,,,
